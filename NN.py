@@ -2,6 +2,9 @@ import math
 import tensorflow as tf
 
 
+def embedding(name, shape):
+	return tf.get_variable(name, shape, initializer=tf.random_uniform_initializer(minval=-0.5 / shape[1], maxval=0.5 / shape[1]))
+
 def weight(name, shape, init='he'):
 	assert init == 'he' and len(shape) == 2
 	var = tf.get_variable(name, shape, initializer=tf.random_normal_initializer(stddev=math.sqrt(2.0 / shape[0])))
@@ -17,6 +20,3 @@ def fully_connected(input, num_neurons, name, activation='elu'):
 	b = bias(name + '_b', num_neurons)
 	l = tf.matmul(input, W) + b
 	return func[activation](l)
-
-def dropout(x, keep_prob, training):
-	return tf.cond(training, lambda: tf.nn.dropout(x, keep_prob), lambda: x)

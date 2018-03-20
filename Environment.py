@@ -1,33 +1,38 @@
 import numpy as np
-import util
+import utils
 from multiprocessing import *
-from Cube import Cube
 
 
 class Environment(object):
 	def __init__(self, params):
 		self.params = params
-		self.cube = Cube.load_cube(self.params.cube_file)
-		self.cell_embed = util.load_embed(params, self.cube)
-		self.sigma = np.std(self.cell_embed, axis=0)
-		self.init_state = self.initial_state()
+		self.load_embed()
+		self.sigma = np.std(self.embedding, axis=0)
+		self.load_pair()
 
+	def load_embed(self):
+		paths = [self.params.data_dir + node_type + '.txt' for node_type in self.params.node_type]
+		self.id_to_name, self.name_to_id, self.embedding = utils.load_embed(paths)
+		self.params.num_node = len(self.embedding)
+
+	def load_pair(self):
+		pairs = utils.load_pair(self.params.pair_file)
+		self.pairs = []
+		for pair in pairs:
+			self.pairs.append(np.array((self.name_to_id[pair[0]], self.name_to_id[pair[1]])))
+		self.pairs = np.array(self.pairs)
+
+	# returns a 2d array, 2nd dimension is 2
 	def initial_state(self):
-		return self.cube.initial_state(self.params.test_file, self.params.low_limit, self.params.high_limit, self.params.debug)
+		return self.pairs[np.random.randint(len(self.pairs), size=self.params.batch_size)]
 
-	def state_embed(self, state):
-		return np.mean(self.cell_embed[state], axis=0)
-
-	def total_reward(self, state):
-		return self.cube.total_reward(state, self.params)
-
-	def reward_multiprocessing(self, state_embeds, initial_states, actions):
+	def reward_multiprocessing(self, initial_states, actions):
 		def worker(worker_id):
-			for idx, state_embed, initial_state, action in zip(range(len(state_embeds)), state_embeds, initial_states, actions):
+			for idx, initial_state, action in zip(range(len(initial_states)), initial_states, actions):
 				if idx % num_process == worker_id:
-					queue.put((state_embed, action, np.array(self.trajectory_reward(initial_state, action))))
+					queue.put((action, np.array(self.trajectory_reward(initial_state, action))))
 
-		assert len(state_embeds) == len(initial_states) and len(initial_states) == len(actions)
+		assert len(initial_states) == len(actions)
 		num_process = self.params.num_process
 		queue = Queue()
 		processes = []
@@ -50,7 +55,15 @@ class Environment(object):
 
 
 	def trajectory_reward(self, state, actions):
-		return self.cube.trajectory_reward(state, actions, self.params)
-
-	def convert_state(self, state):
-		return self.cube.all_authors(state)
+		rewards = []
+		reward = 0.0
+		start, target = state
+		prev = -1
+		for action in actions:
+			rewards.append(reward)
+			if action == prev:
+				reward += 1.0
+			elif action == target:
+				reward -= 1.0
+		rewards = reward - np.array(rewards)
+		return rewards

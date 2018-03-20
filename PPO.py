@@ -12,12 +12,16 @@ class PPO(object):
 		self.build()
 
 	def build(self):
-		self.cell_embed = tf.Variable(self.environment.cell_embed, trainable=False, dtype=tf.float32)
-		self.state = tf.placeholder(tf.float32, [None, self.params.embed_dim])
+		self.embedding = tf.Variable(self.environment.embedding, dtype=tf.float32, trainable=True)
+		self.neighbors = tf.placeholder(tf.float32, [None, self.params.num_node])
+		self.state = tf.placeholder(tf.int32, [None])
+		self.target = tf.placeholder(tf.int32, [None])
 		self.action = tf.placeholder(tf.int32, [None])
 		self.reward_to_go = tf.placeholder(tf.float32, [None])
 
-		hidden = self.value_policy(self.state)
+		state_embedding = tf.concat([tf.nn.embedding_lookup(self.embedding, self.state),
+		                             tf.nn.embedding_lookup(self.embedding, self.target)], axis=1)
+		hidden = self.value_policy(state_embedding)
 		value = self.value(hidden)
 		with tf.variable_scope('new'):
 			policy = self.policy(hidden)
@@ -31,7 +35,7 @@ class PPO(object):
 
 		# use scaled std of embedding vectors as policy std
 		sigma = tf.Variable(self.environment.sigma / 2.0, trainable=False, dtype=tf.float32)
-		self.build_train(tf.nn.embedding_lookup(self.cell_embed, self.action), self.reward_to_go, value, policy, policy_old, sigma)
+		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), self.reward_to_go, value, policy, policy_old, sigma)
 		self.decision = self.build_plan(policy, sigma)
 
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
@@ -49,8 +53,8 @@ class PPO(object):
 	def build_plan(self, policy_mean, sigma):
 		policy = tf.distributions.Normal(policy_mean, sigma)
 		action_embed = policy.sample()
-		return tf.argmin(tf.reduce_sum(
-			tf.squared_difference(tf.expand_dims(action_embed, axis=1), tf.expand_dims(self.cell_embed, axis=0)), axis=-1), axis=-1)
+		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1), tf.expand_dims(self.embedding, axis=0))
+		return tf.argmax(tf.divide(self.neighbors, tf.reduce_sum(l2_diff, axis=-1)), axis=-1)
 
 	def value_policy(self, state):
 		hidden = state
@@ -59,28 +63,23 @@ class PPO(object):
 		return hidden
 
 	def value(self, hidden):
-		return fully_connected(hidden, 1, 'policy_value_o', activation='linear')
+		return fully_connected(hidden, 1, 'value_o', activation='linear')
 
 	def policy(self, hidden):
-		return fully_connected(hidden, self.params.embed_dim, 'policy_o')
+		return fully_connected(hidden, self.params.embed_dim, 'policy_o', activation='linear')
 
 	# the number of trajectories sampled is equal to batch size
 	def collect_trajectory(self, sess):
-		ret_states = []
-		initial_states = [self.environment.init_state] * self.params.batch_size
-		batch_states = [deepcopy(state) for state in initial_states]
-		feed_state = np.array([self.environment.state_embed(list(s)) for s in batch_states])
-		batch_actions = []
+		initial_states = self.environment.initial_state()
+		feed_states = initial_states
+		actions = []
 		for i in range(self.params.trajectory_length):
-			ret_states.append(feed_state)
-			action = sess.run(self.decision, feed_dict={self.state: feed_state})
-			batch_actions.append(action)
-			for i, state in enumerate(batch_states):
-				state.add(action[i])
-				feed_state[i] = self.environment.state_embed(list(state))
-		ret_states = list(np.transpose(np.array(ret_states), (1, 0, 2)))
-		batch_actions = list(np.transpose(batch_actions))
-		return self.environment.reward_multiprocessing(ret_states, initial_states, batch_actions)
+			action = sess.run(self.decision, feed_dict={self.state: feed_states[:, 0], self.target: feed_states[:, 1]})
+			actions.append(action)
+			feed_states[:, 0] = action
+		initial_states = list(map(tuple, list(initial_states)))
+		actions = np.transpose(np.array(actions)).tolist()
+		return self.environment.reward_multiprocessing(initial_states, actions)
 
 	def train(self, sess):
 		sess.run(tf.global_variables_initializer())
@@ -95,11 +94,3 @@ class PPO(object):
 					sess.run(self.step,
 					         feed_dict={self.state: states[batch_indices], self.action: actions[batch_indices], self.reward_to_go: rewards[batch_indices]})
 			sess.run(self.assign_ops)
-
-	def plan(self, sess):
-		state = self.environment.init_state
-		for _ in range(self.params.trajectory_length):
-			feed_state = np.expand_dims(self.environment.state_embed(list(state)), axis=0)
-			action = sess.run(self.decision, feed_dict={self.state: feed_state})
-			state.add(action[0])
-		return self.environment.convert_state(state), self.environment.total_reward(state)
