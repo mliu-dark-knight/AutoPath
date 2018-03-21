@@ -1,6 +1,7 @@
 import numpy as np
 import utils
 from multiprocessing import *
+from scipy.sparse import csr_matrix
 
 
 class Environment(object):
@@ -9,6 +10,21 @@ class Environment(object):
 		self.load_embed()
 		self.sigma = np.std(self.embedding, axis=0)
 		self.load_pair()
+		self.load_graph()
+
+	def load_graph(self):
+		row, col, data = [], [], []
+		with open(self.params.graph_file) as f:
+			for line in f:
+				line = line.rstrip().split('\t')
+				row.append(self.name_to_id[line[0]])
+				col.append(self.name_to_id[line[1]])
+				data.append(1.0)
+				row.append(self.name_to_id[line[1]])
+				col.append(self.name_to_id[line[0]])
+				data.append(1.0)
+		self.graph = csr_matrix((data, (row, col)), shape=(self.params.num_node, self.params.num_node))
+
 
 	def load_embed(self):
 		paths = [self.params.data_dir + node_type + '.txt' for node_type in self.params.node_type]
@@ -26,13 +42,16 @@ class Environment(object):
 	def initial_state(self):
 		return self.pairs[np.random.randint(len(self.pairs), size=self.params.batch_size)]
 
-	def reward_multiprocessing(self, initial_states, actions):
-		def worker(worker_id):
-			for idx, initial_state, action in zip(range(len(initial_states)), initial_states, actions):
-				if idx % num_process == worker_id:
-					queue.put((action, np.array(self.trajectory_reward(initial_state, action))))
+	def get_neighbors(self, nodes):
+		return self.graph[nodes].toarray()
 
-		assert len(initial_states) == len(actions)
+	def reward_multiprocessing(self, states, actions):
+		def worker(worker_id):
+			for idx, state, action in zip(range(len(states)), states, actions):
+				if idx % num_process == worker_id:
+					queue.put((state, action, np.array(self.trajectory_reward(state, action))))
+
+		assert len(states) == len(actions)
 		num_process = self.params.num_process
 		queue = Queue()
 		processes = []
@@ -54,16 +73,17 @@ class Environment(object):
 		return np.concatenate(ret_states, axis=0), np.concatenate(ret_actions, axis=0), np.concatenate(ret_rewards, axis=0)
 
 
-	def trajectory_reward(self, state, actions):
+	def trajectory_reward(self, states, actions):
 		rewards = []
 		reward = 0.0
-		start, target = state
+		start, target = states[0]
 		prev = -1
 		for action in actions:
 			rewards.append(reward)
 			if action == prev:
-				reward += 1.0
-			elif action == target:
 				reward -= 1.0
+			elif action == target:
+				reward += 1.0
+			prev = action
 		rewards = reward - np.array(rewards)
 		return rewards

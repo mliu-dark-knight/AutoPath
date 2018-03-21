@@ -12,8 +12,8 @@ def parse_args():
 	parser.add_argument('--learning_rate', type=float, default=1e-3, help=None)
 	parser.add_argument('--clip_epsilon', type=float, default=1e-1, help=None)
 	parser.add_argument('--c_value', type=float, default=1.0, help='Coefficient for value function loss')
-	parser.add_argument('--batch_size', type=int, default=4, help='Number of trajectories sampled')
-	parser.add_argument('--trajectory_length', type=int, default=2, help=None)
+	parser.add_argument('--batch_size', type=int, default=10, help='Number of trajectories sampled')
+	parser.add_argument('--trajectory_length', type=int, default=20, help=None)
 	parser.add_argument('--epoch', type=int, default=4, help=None)
 	parser.add_argument('--outer_step', type=int, default=4, help='Number of rounds of mini batch SGD per epoch')
 	parser.add_argument('--step', type=int, default=2, help=None)
@@ -23,6 +23,7 @@ def parse_args():
 
 def init_dir(args):
 	args.data_dir = os.getcwd() + '/data/'
+	args.graph_file = args.data_dir + '/link.txt'
 	args.pair_file = args.data_dir + '/link.txt'
 
 args = parse_args()

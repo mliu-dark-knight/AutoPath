@@ -70,16 +70,17 @@ class PPO(object):
 
 	# the number of trajectories sampled is equal to batch size
 	def collect_trajectory(self, sess):
-		initial_states = self.environment.initial_state()
-		feed_states = initial_states
-		actions = []
+		feed_state = self.environment.initial_state()
+		states, actions = [], []
 		for i in range(self.params.trajectory_length):
-			action = sess.run(self.decision, feed_dict={self.state: feed_states[:, 0], self.target: feed_states[:, 1]})
+			states.append(deepcopy(feed_state))
+			feed_neighor = self.environment.get_neighbors(feed_state[:, 0])
+			action = sess.run(self.decision, feed_dict={self.state: feed_state[:, 0], self.target: feed_state[:, 1], self.neighbors: feed_neighor})
 			actions.append(action)
-			feed_states[:, 0] = action
-		initial_states = list(map(tuple, list(initial_states)))
+			feed_state[:, 0] = action
+		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
-		return self.environment.reward_multiprocessing(initial_states, actions)
+		return self.environment.reward_multiprocessing(states, actions)
 
 	def train(self, sess):
 		sess.run(tf.global_variables_initializer())
@@ -91,6 +92,6 @@ class PPO(object):
 			for _ in tqdm(range(self.params.outer_step), ncols=100):
 				for i in range(self.params.step):
 					batch_indices = indices[i * batch_size : (i + 1) * batch_size]
-					sess.run(self.step,
-					         feed_dict={self.state: states[batch_indices], self.action: actions[batch_indices], self.reward_to_go: rewards[batch_indices]})
+					sess.run(self.step, feed_dict={self.state: states[batch_indices][:, 0], self.target: states[batch_indices][:, 1],
+					                               self.action: actions[batch_indices], self.reward_to_go: rewards[batch_indices]})
 			sess.run(self.assign_ops)
