@@ -21,9 +21,6 @@ class Environment(object):
 					row.append(self.name_to_id[line[0]])
 					col.append(self.name_to_id[line[1]])
 					data.append(1.0)
-					row.append(self.name_to_id[line[1]])
-					col.append(self.name_to_id[line[0]])
-					data.append(1.0)
 		self.graph = csr_matrix((data, (row, col)), shape=(self.params.num_node, self.params.num_node))
 
 
@@ -45,7 +42,14 @@ class Environment(object):
 		return self.pairs[np.random.randint(len(self.pairs), size=self.params.batch_size)]
 
 	def get_neighbors(self, nodes):
-		return self.graph[nodes].toarray()
+		indices = []
+		for node in nodes:
+			indices.append(self.graph[node].nonzero()[1])
+		max_length = max(map(lambda l: len(l), indices))
+		indices_copy = []
+		for index in indices:
+			indices_copy.append(np.pad(index, (0, max_length - len(index)), 'wrap'))
+		return np.array(indices_copy)
 
 	def reward_multiprocessing(self, states, actions):
 		def worker(worker_id):

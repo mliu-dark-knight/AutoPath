@@ -13,7 +13,7 @@ class PPO(object):
 
 	def build(self):
 		self.embedding = tf.Variable(self.environment.embedding, dtype=tf.float32, trainable=True)
-		self.neighbors = tf.placeholder(tf.float32, [None, self.params.num_node])
+		self.neighbors = tf.placeholder(tf.int32, [None, None])
 		self.state = tf.placeholder(tf.int32, [None])
 		self.target = tf.placeholder(tf.int32, [None])
 		self.action = tf.placeholder(tf.int32, [None])
@@ -53,8 +53,9 @@ class PPO(object):
 	def build_plan(self, policy_mean, sigma):
 		policy = tf.distributions.Normal(policy_mean, sigma)
 		action_embed = policy.sample()
-		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1), tf.expand_dims(self.embedding, axis=0))
-		return tf.argmax(tf.divide(self.neighbors, tf.reduce_sum(l2_diff, axis=-1)), axis=-1)
+		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1),
+		                                tf.nn.embedding_lookup(self.embedding, self.neighbors))
+		return tf.argmax(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
 
 	def value_policy(self, state):
 		hidden = state
@@ -75,7 +76,10 @@ class PPO(object):
 		for i in range(self.params.trajectory_length):
 			states.append(deepcopy(feed_state))
 			feed_neighor = self.environment.get_neighbors(feed_state[:, 0])
-			action = sess.run(self.decision, feed_dict={self.state: feed_state[:, 0], self.target: feed_state[:, 1], self.neighbors: feed_neighor})
+			# action contains indices of actual node IDs
+			action_indices = sess.run(self.decision,
+			                          feed_dict={self.state: feed_state[:, 0], self.target: feed_state[:, 1], self.neighbors: feed_neighor})
+			action = feed_neighor[np.array(range(self.params.batch_size)), action_indices]
 			actions.append(action)
 			feed_state[:, 0] = action
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
