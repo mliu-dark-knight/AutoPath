@@ -1,3 +1,4 @@
+import gc
 import numpy as np
 from copy import deepcopy
 from NN import *
@@ -82,6 +83,8 @@ class PPO(object):
 			action = feed_neighor[np.array(range(self.params.batch_size)), action_indices]
 			actions.append(action)
 			feed_state[:, 0] = action
+			del feed_neighor
+			gc.collect()
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
 		return self.environment.reward_multiprocessing(states, actions)
