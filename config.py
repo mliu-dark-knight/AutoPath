@@ -5,6 +5,7 @@ import os
 def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--debug', type=bool, default=False, help=None)
+	parser.add_argument('--device_id', type=int, default=0, help=None)
 	parser.add_argument('--num_node', type=int, default=-1, help='Total number of nodes')
 	parser.add_argument('--node_type', type=list, default=['user', 'business', 'star', 'category', 'city'], help=None)
 	parser.add_argument('--embed_dim', type=int, default=64, help=None)
