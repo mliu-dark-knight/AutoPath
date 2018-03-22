@@ -57,7 +57,7 @@ class PPO(object):
 		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1),
 		                                tf.nn.embedding_lookup(self.embedding, self.neighbors))
 		decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
-		del l2_diff
+		del l2_diff, policy, action_embed
 		gc.collect()
 		return decision
 
@@ -86,7 +86,7 @@ class PPO(object):
 			action = feed_neighor[np.array(range(self.params.batch_size)), action_indices]
 			actions.append(action)
 			feed_state[:, 0] = action
-			del feed_neighor
+			del feed_neighor, action_indices, action
 			gc.collect()
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
@@ -105,3 +105,5 @@ class PPO(object):
 					sess.run(self.step, feed_dict={self.state: states[batch_indices][:, 0], self.target: states[batch_indices][:, 1],
 					                               self.action: actions[batch_indices], self.reward_to_go: rewards[batch_indices]})
 			sess.run(self.assign_ops)
+			del states, actions, rewards
+			gc.collect()
