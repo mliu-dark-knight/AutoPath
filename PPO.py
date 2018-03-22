@@ -37,7 +37,7 @@ class PPO(object):
 		# use scaled std of embedding vectors as policy std
 		sigma = tf.Variable(self.environment.sigma / 2.0, trainable=False, dtype=tf.float32)
 		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), self.reward_to_go, value, policy, policy_old, sigma)
-		self.decision = self.build_plan(policy, sigma)
+		self.build_plan(policy, sigma)
 
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
@@ -56,10 +56,7 @@ class PPO(object):
 		action_embed = policy.sample()
 		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1),
 		                                tf.nn.embedding_lookup(self.embedding, self.neighbors))
-		decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
-		del l2_diff, policy, action_embed
-		gc.collect()
-		return decision
+		self.decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
 
 	def value_policy(self, state):
 		hidden = state
@@ -86,8 +83,6 @@ class PPO(object):
 			action = feed_neighor[np.array(range(self.params.batch_size)), action_indices]
 			actions.append(action)
 			feed_state[:, 0] = action
-			del feed_neighor, action_indices, action
-			gc.collect()
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
 		return self.environment.reward_multiprocessing(states, actions)
@@ -105,5 +100,3 @@ class PPO(object):
 					sess.run(self.step, feed_dict={self.state: states[batch_indices][:, 0], self.target: states[batch_indices][:, 1],
 					                               self.action: actions[batch_indices], self.reward_to_go: rewards[batch_indices]})
 			sess.run(self.assign_ops)
-			del states, actions, rewards
-			gc.collect()
