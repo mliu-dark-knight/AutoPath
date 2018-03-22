@@ -56,7 +56,10 @@ class PPO(object):
 		action_embed = policy.sample()
 		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1),
 		                                tf.nn.embedding_lookup(self.embedding, self.neighbors))
-		return tf.argmax(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
+		decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
+		del l2_diff
+		gc.collect()
+		return decision
 
 	def value_policy(self, state):
 		hidden = state
