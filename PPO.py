@@ -39,6 +39,9 @@ class PPO(object):
 		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), self.reward_to_go, value, policy, policy_old, sigma)
 		self.build_plan(policy, sigma)
 
+		del state_embedding, hidden, value, policy, policy_old, sigma
+		gc.collect()
+
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
@@ -51,12 +54,18 @@ class PPO(object):
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.step = optimizer.minimize(surr_loss + self.params.c_value * v_loss)
 
+		del advantage, ratio, surr_loss, v_loss, optimizer
+		gc.collect()
+
 	def build_plan(self, policy_mean, sigma):
 		policy = tf.distributions.Normal(policy_mean, sigma)
 		action_embed = policy.sample()
 		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1),
 		                                tf.nn.embedding_lookup(self.embedding, self.neighbors))
 		self.decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
+
+		del policy, action_embed, l2_diff
+		gc.collect()
 
 	def value_policy(self, state):
 		hidden = state
