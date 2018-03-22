@@ -36,7 +36,8 @@ class Environment(object):
 		pairs = utils.load_pair(self.params.pair_file)
 		self.pairs = []
 		for pair in pairs:
-			self.pairs.append(np.array((self.name_to_id[pair[0]], self.name_to_id[pair[1]])))
+			if pair[0] in self.name_to_id and pair[1] in self.name_to_id:
+				self.pairs.append(np.array((self.name_to_id[pair[0]], self.name_to_id[pair[1]])))
 		self.pairs = np.array(self.pairs)
 
 	# returns a 2d array, 2nd dimension is 2
