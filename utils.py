@@ -18,6 +18,7 @@ def load_pair(path):
 	pairs = []
 	with open(path) as f:
 		for line in  f:
-			line = line.rstrip().split()
-			pairs.append((line[0], line[1]))
+			line = line.rstrip().split('\t')
+			if len(line) == 2:
+				pairs.append((line[0], line[1]))
 	return pairs

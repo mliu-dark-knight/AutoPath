@@ -17,12 +17,13 @@ class Environment(object):
 		with open(self.params.graph_file) as f:
 			for line in f:
 				line = line.rstrip().split('\t')
-				row.append(self.name_to_id[line[0]])
-				col.append(self.name_to_id[line[1]])
-				data.append(1.0)
-				row.append(self.name_to_id[line[1]])
-				col.append(self.name_to_id[line[0]])
-				data.append(1.0)
+				if len(line) == 2 and line[0] in self.name_to_id and line[1] in self.name_to_id:
+					row.append(self.name_to_id[line[0]])
+					col.append(self.name_to_id[line[1]])
+					data.append(1.0)
+					row.append(self.name_to_id[line[1]])
+					col.append(self.name_to_id[line[0]])
+					data.append(1.0)
 		self.graph = csr_matrix((data, (row, col)), shape=(self.params.num_node, self.params.num_node))
 
 
