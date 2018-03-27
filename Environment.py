@@ -29,6 +29,13 @@ class Environment(object):
 		self.id_to_name, self.name_to_id, self.embedding = utils.load_embed(paths)
 		self.params.num_node = len(self.embedding)
 
+	def dump_embed(self, embedding=None):
+		if embedding is not None:
+			self.embedding = embedding
+		with open(self.params.result_file, 'w') as f:
+			for id, vector in enumerate(self.embedding):
+				f.write(self.id_to_name[id] + '\t' + ' '.join(list(map(str, vector))) + '\n')
+
 	def load_pair(self):
 		pairs = utils.load_pair(self.params.pair_file)
 		self.pairs = []
