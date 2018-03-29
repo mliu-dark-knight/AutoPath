@@ -81,17 +81,18 @@ class PPO(object):
 
 	# the number of trajectories sampled is equal to batch size
 	def collect_trajectory(self, sess):
-		feed_state = self.environment.initial_state()
+		start_state = self.environment.initial_state()
+		feed_state = deepcopy(start_state)
 		states, actions = [], []
 		for i in range(self.params.trajectory_length):
-			states.append(deepcopy(feed_state))
+			states.append(feed_state)
 			feed_neighor = self.environment.get_neighbors(feed_state[:, 0])
 			# action contains indices of actual node IDs
 			action_indices = sess.run(self.decision,
 			                          feed_dict={self.state: feed_state[:, 0], self.target: feed_state[:, 1], self.neighbors: feed_neighor})
 			action = feed_neighor[np.array(range(self.params.batch_size)), action_indices]
 			actions.append(action)
-			feed_state[:, 0] = action
+			feed_state = self.environment.next_state(feed_state, action)
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
 		return self.environment.reward_multiprocessing(states, actions)
@@ -109,3 +110,6 @@ class PPO(object):
 					sess.run(self.step, feed_dict={self.state: states[batch_indices][:, 0], self.target: states[batch_indices][:, 1],
 					                               self.action: actions[batch_indices], self.reward_to_go: rewards[batch_indices]})
 			sess.run(self.assign_ops)
+
+	def plan(self, sess):
+		pass

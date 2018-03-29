@@ -26,7 +26,8 @@ def parse_args():
 def init_dir(args):
 	args.data_dir = os.getcwd() + '/data/'
 	args.graph_file = args.data_dir + '/link.txt'
-	args.pair_file = args.data_dir + '/link.txt'
+	args.train_file = args.data_dir + '/train.txt'
+	args.test_file = args.data_dir + '/test.txt'
 	args.result_file = args.data_dir + '/result.txt'
 
 args = parse_args()
