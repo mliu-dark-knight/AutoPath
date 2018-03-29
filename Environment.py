@@ -9,7 +9,8 @@ class Environment(object):
 		self.params = params
 		self.load_embed()
 		self.sigma = np.std(self.embedding, axis=0)
-		self.load_train()
+		self.train_pairs = self.load_pair(self.params.train_file)
+		self.test_pairs = self.load_pair(self.params.test_file)
 		self.load_graph()
 
 	def load_graph(self):
@@ -36,17 +37,20 @@ class Environment(object):
 			for id, vector in enumerate(self.embedding):
 				f.write(self.id_to_name[id] + '\t' + ' '.join(list(map(str, vector))) + '\n')
 
-	def load_train(self):
-		pairs = utils.load_pair(self.params.train_file)
-		self.pairs = []
+	def load_pair(self, path):
+		pairs = utils.load_pair(path)
+		return_pairs = []
 		for pair in pairs:
 			if pair[0] in self.name_to_id and pair[1] in self.name_to_id:
-				self.pairs.append(np.array((self.name_to_id[pair[0]], self.name_to_id[pair[1]])))
-		self.pairs = np.array(self.pairs)
+				return_pairs.append(np.array((self.name_to_id[pair[0]], self.name_to_id[pair[1]])))
+		return np.array(return_pairs)
 
 	# returns a 2d array, 2nd dimension is 2
 	def initial_state(self):
-		return self.pairs[np.random.randint(len(self.pairs), size=self.params.batch_size)]
+		return self.train_pairs[np.random.randint(len(self.train_pairs), size=self.params.batch_size)]
+
+	def initial_test(self):
+		return self.test_pairs
 
 	def next_state(self, starts, actions):
 		nexts = []
