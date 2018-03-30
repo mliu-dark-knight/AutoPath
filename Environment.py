@@ -7,15 +7,20 @@ from scipy.sparse import csr_matrix
 class Environment(object):
 	def __init__(self, params):
 		self.params = params
-		self.load_embed()
-		self.sigma = np.std(self.embedding, axis=0)
+		self.load_node()
+		self.load_graph()
 		self.train_pairs = self.load_pair(self.params.train_file)
 		self.test_pairs = self.load_pair(self.params.test_file)
-		self.load_graph()
+
+	def load_node(self):
+		self.id_to_name, self.name_to_id, self.type_to_node, self.id_to_type, self.type_to_id = \
+			utils.load_node(self.params.node_file)
+		self.params.num_node = len(self.id_to_name)
+		self.params.num_type = len(self.id_to_type)
 
 	def load_graph(self):
 		row, col, data = [], [], []
-		with open(self.params.graph_file) as f:
+		with open(self.params.link_file) as f:
 			for line in f:
 				line = line.rstrip().split('\t')
 				if len(line) == 2 and line[0] in self.name_to_id and line[1] in self.name_to_id:
@@ -23,19 +28,6 @@ class Environment(object):
 					col.append(self.name_to_id[line[1]])
 					data.append(1.0)
 		self.graph = csr_matrix((data, (row, col)), shape=(self.params.num_node, self.params.num_node))
-
-
-	def load_embed(self):
-		paths = [self.params.data_dir + node_type + '.txt' for node_type in self.params.node_type]
-		self.id_to_name, self.name_to_id, self.embedding = utils.load_embed(paths)
-		self.params.num_node = len(self.embedding)
-
-	def dump_embed(self, embedding=None):
-		if embedding is not None:
-			self.embedding = embedding
-		with open(self.params.result_file, 'w') as f:
-			for id, vector in enumerate(self.embedding):
-				f.write(self.id_to_name[id] + '\t' + ' '.join(list(map(str, vector))) + '\n')
 
 	def load_pair(self, path):
 		pairs = utils.load_pair(path)
@@ -100,7 +92,6 @@ class Environment(object):
 			process.join()
 
 		return np.concatenate(ret_states, axis=0), np.concatenate(ret_actions, axis=0), np.concatenate(ret_rewards, axis=0)
-
 
 	def trajectory_reward(self, states, actions):
 		rewards = []
