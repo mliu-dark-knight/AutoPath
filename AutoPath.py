@@ -27,6 +27,7 @@ class AutoPath(object):
 	def build_classification(self):
 		embedding = tf.nn.embedding_lookup(self.embedding, self.indices)
 		logits = fully_connected(embedding, self.params.num_type, 'Classification', activation='linear')
+		self.prediction = tf.argmax(logits, axis=1)
 		loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.one_hot(self.labels, self.params.num_type), logits=logits), axis=0)
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.classification_step = optimizer.minimize(loss)
@@ -143,6 +144,19 @@ class AutoPath(object):
 		for _ in tqdm(range(self.params.epoch), ncols=100):
 			self.classification_epoch(sess)
 			self.PPO_epoch(sess)
+
+	def accuracy(self, sess):
+		indices, labels = [], []
+		types = self.environment.type_to_id.keys()
+		for t in types:
+			labels += [self.environment.type_to_id[t]] * len(self.environment.type_to_node[t])
+			indices += list(self.environment.type_to_node[t])
+		predictions = sess.run(self.prediction, feed_dict={self.indices: np.array(indices)})
+		correct = 0
+		for label, prediction in zip(labels, predictions):
+			if label == prediction:
+				correct += 1
+		return float(correct) / len(indices)
 
 	def plan(self, sess):
 		pass

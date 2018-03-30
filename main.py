@@ -10,4 +10,5 @@ if __name__ == '__main__':
 		agent = AutoPath(environment.params, environment)
 		with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 			agent.train(sess)
+			print('Node type accuracy: %f', agent.accuracy(sess))
 			agent.plan(sess)
