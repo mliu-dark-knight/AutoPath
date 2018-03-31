@@ -1,9 +1,12 @@
 import gc
-import numpy as np
+import operator
 from copy import deepcopy
-from NN import *
-from tqdm import tqdm
 from random import shuffle
+
+import numpy as np
+from tqdm import tqdm
+
+from NN import *
 
 
 class AutoPath(object):
@@ -13,7 +16,9 @@ class AutoPath(object):
 		self.build()
 
 	def build(self):
-		self.embedding = embedding('Embedding', [self.params.num_node, self.params.embed_dim])
+		self.training = tf.placeholder(tf.bool)
+		# last index is None embedding
+		self.embedding = embedding('Embedding', [self.params.num_node + 1, self.params.embed_dim])
 		self.indices = tf.placeholder(tf.int32, [None])
 		self.labels = tf.placeholder(tf.int32, [None])
 		self.neighbors = tf.placeholder(tf.int32, [None, None])
@@ -25,7 +30,7 @@ class AutoPath(object):
 		self.build_PPO()
 
 	def build_classification(self):
-		embedding = tf.nn.embedding_lookup(self.embedding, self.indices)
+		embedding = dropout(tf.nn.embedding_lookup(self.embedding, self.indices), self.params.keep_prob, self.training)
 		logits = fully_connected(embedding, self.params.num_type, 'Classification', activation='linear')
 		self.prediction = tf.argmax(logits, axis=1)
 		loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.one_hot(self.labels, self.params.num_type), logits=logits), axis=0)
@@ -96,25 +101,27 @@ class AutoPath(object):
 		return fully_connected(hidden, self.params.embed_dim, 'policy_o', activation='linear')
 
 	# the number of trajectories sampled is equal to batch size
-	def collect_trajectory(self, sess):
-		start_state = self.environment.initial_state()
+	def collect_trajectory(self, sess, start_state):
 		feed_state = deepcopy(start_state)
 		states, actions = [], []
 		for i in range(self.params.trajectory_length):
 			states.append(feed_state)
-			feed_neighor = self.environment.get_neighbors(feed_state[:, 0])
+			feed_neighbor = self.environment.get_neighbors(feed_state[:, 0])
 			# action contains indices of actual node IDs
 			action_indices = sess.run(self.decision,
-			                          feed_dict={self.state: feed_state, self.neighbors: feed_neighor})
-			action = feed_neighor[np.array(range(self.params.batch_size)), action_indices]
+			                          feed_dict={self.state: feed_state, self.neighbors: feed_neighbor})
+			action = feed_neighbor[np.array(range(len(start_state))), action_indices]
 			actions.append(action)
 			feed_state = self.environment.next_state(feed_state, action)
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
-		return self.environment.reward_multiprocessing(states, actions)
+		return states, actions
 
 	def PPO_epoch(self, sess):
-		states, actions, rewards = self.collect_trajectory(sess)
+		start_state = self.environment.initial_state()
+		states, actions = self.collect_trajectory(sess, start_state)
+		states, actions, rewards = self.environment.compute_reward(states, actions)
+		assert len(states) == len(actions) and len(actions) == len(rewards)
 		indices = range(self.params.trajectory_length * self.params.batch_size)
 		shuffle(indices)
 		batch_size = self.params.trajectory_length * self.params.batch_size / self.params.step
@@ -137,7 +144,7 @@ class AutoPath(object):
 	def classification_epoch(self, sess):
 		for _ in tqdm(range(self.params.outer_step), ncols=100):
 			indices, labels = self.sample_classification()
-			sess.run(self.classification_step, feed_dict={self.indices: indices, self.labels: labels})
+			sess.run(self.classification_step, feed_dict={self.indices: indices, self.labels: labels, self.training: True})
 
 	def train(self, sess):
 		sess.run(tf.global_variables_initializer())
@@ -151,7 +158,7 @@ class AutoPath(object):
 		for t in types:
 			labels += [self.environment.type_to_id[t]] * len(self.environment.type_to_node[t])
 			indices += list(self.environment.type_to_node[t])
-		predictions = sess.run(self.prediction, feed_dict={self.indices: np.array(indices)})
+		predictions = sess.run(self.prediction, feed_dict={self.indices: np.array(indices), self.training: False})
 		correct = 0
 		for label, prediction in zip(labels, predictions):
 			if label == prediction:
@@ -159,4 +166,20 @@ class AutoPath(object):
 		return float(correct) / len(indices)
 
 	def plan(self, sess):
-		pass
+		start_state = self.environment.initial_test()
+		actions = []
+		for i in range(int(math.ceil(len(start_state) / float(self.params.batch_size)))):
+			_, action = self.collect_trajectory(sess, start_state[i * self.params.batch_size : min((i + 1) * self.params.batch_size, len(start_state))])
+			actions.append(action)
+		actions = np.concatenate(actions, axis=0)
+		start_state = start_state[:, 0]
+
+		recommendation = {}
+		for state, action in zip(start_state, actions):
+			visited = {}
+			for a in action:
+				if a not in visited:
+					visited[a] = 0
+				visited[a] += 1
+			recommendation[state] = sorted(visited.items(), key=operator.itemgetter(1), reverse=True)
+		return recommendation

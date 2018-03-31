@@ -27,10 +27,31 @@ def load_node(path):
 
 
 def load_pair(path):
-	pairs = []
+	pairs = defaultdict(set)
 	with open(path) as f:
 		for line in  f:
 			line = line.rstrip().split('\t')
 			if len(line) == 2:
-				pairs.append((line[0], line[1]))
+				pairs[line[0]].add(line[1])
+				pairs[line[1]].add(line[0])
 	return pairs
+
+def load_groups(paths):
+	groups = []
+	for path in paths:
+		group = set()
+		with open(path) as f:
+			for line in f:
+				group.add(line.rstrip())
+		groups.append(group)
+	return groups
+
+
+def precision_recall(prediction, ground_truth, top_k):
+	assert len(prediction) == len(ground_truth)
+	precision, recall = 0.0, 0.0
+	for key, recommendation in prediction.items():
+		intersection = ground_truth[key] & set(recommendation[:top_k])
+		precision += len(intersection) / float(top_k)
+		recall += len(intersection) / float(len(ground_truth[key]))
+	return precision / len(prediction), recall / len(ground_truth)

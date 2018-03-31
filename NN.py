@@ -20,3 +20,6 @@ def fully_connected(input, num_neurons, name, activation='elu'):
 	b = bias(name + '_b', num_neurons)
 	l = tf.matmul(input, W) + b
 	return func[activation](l)
+
+def dropout(x, keep_prob, training):
+	return tf.cond(training, lambda: tf.nn.dropout(x, keep_prob), lambda: x)

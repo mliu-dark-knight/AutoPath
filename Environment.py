@@ -9,8 +9,8 @@ class Environment(object):
 		self.params = params
 		self.load_node()
 		self.load_graph()
-		self.train_pairs = self.load_pair(self.params.train_file)
-		self.test_pairs = self.load_pair(self.params.test_file)
+		self.train_data = self.load_train(self.params.train_files)
+		self.test_data = self.load_test(self.params.test_file)
 
 	def load_node(self):
 		self.id_to_name, self.name_to_id, self.type_to_node, self.id_to_type, self.type_to_id = \
@@ -29,20 +29,35 @@ class Environment(object):
 					data.append(1.0)
 		self.graph = csr_matrix((data, (row, col)), shape=(self.params.num_node, self.params.num_node))
 
-	def load_pair(self, path):
-		pairs = utils.load_pair(path)
-		return_pairs = []
-		for pair in pairs:
-			if pair[0] in self.name_to_id and pair[1] in self.name_to_id:
-				return_pairs.append(np.array((self.name_to_id[pair[0]], self.name_to_id[pair[1]])))
-		return np.array(return_pairs)
+	def load_train(self, paths):
+		groups = utils.load_groups(paths)
+		return [np.array([self.name_to_id[name] for name in group if name in self.name_to_id ]) for group in groups]
 
-	# returns a 2d array, 2nd dimension is 2
+	def load_test(self, path):
+		related = utils.load_pair(path)
+		return_related = {}
+		for key, values in related.items():
+			if key in self.name_to_id:
+				ids = set([self.name_to_id[value] for value in values if value in self.name_to_id])
+				if bool(ids):
+					return_related[self.name_to_id[key]] = ids
+		return return_related
+
+	# returns a batch of 2d array, 2nd dimension is 2
 	def initial_state(self):
-		return self.train_pairs[np.random.randint(len(self.train_pairs), size=self.params.batch_size)]
+		total_size = sum([len(group)**2 for group in self.train_data])
+		batch_size = self.params.batch_size
+		states = []
+		for group in self.train_data:
+			sample_size = max(len(group)**2 * batch_size / total_size, 1)
+			states.append(np.stack([np.random.choice(group, size=sample_size), np.random.choice(group, size=sample_size)], axis=1))
+		return np.concatenate(states, axis=0)
 
+	# returns all test pairs
 	def initial_test(self):
-		return self.test_pairs
+		states = np.array(self.test_data.keys())
+		empty_states = np.array([self.params.num_node] * len(states))
+		return np.stack([states, empty_states], axis=1)
 
 	def next_state(self, starts, actions):
 		nexts = []
@@ -66,32 +81,15 @@ class Environment(object):
 				indices_copy.append(np.random.choice(index, max_length, replace=False))
 		return np.array(indices_copy)
 
-	def reward_multiprocessing(self, states, actions):
-		def worker(worker_id):
-			for idx, state, action in zip(range(len(states)), states, actions):
-				if idx % num_process == worker_id:
-					queue.put((state, action, np.array(self.trajectory_reward(state, action))))
-
+	def compute_reward(self, states, actions):
 		assert len(states) == len(actions)
-		num_process = self.params.num_process
-		queue = Queue()
-		processes = []
-		for id in range(num_process):
-			process = Process(target=worker, args=(id,))
-			process.start()
-			processes.append(process)
+		return_states, return_actions, return_rewards = [], [], []
+		for state, action in zip(states, actions):
+			return_states.append(state)
+			return_actions.append(action)
+			return_rewards.append(np.array(self.trajectory_reward(state, action)))
+		return np.concatenate(return_states, axis=0), np.concatenate(return_actions, axis=0), np.concatenate(return_rewards, axis=0)
 
-		ret_states, ret_actions, ret_rewards = [], [], []
-		for i in range(self.params.batch_size):
-			state, action, reward = queue.get()
-			ret_states.append(state)
-			ret_actions.append(action)
-			ret_rewards.append(reward)
-
-		for process in processes:
-			process.join()
-
-		return np.concatenate(ret_states, axis=0), np.concatenate(ret_actions, axis=0), np.concatenate(ret_rewards, axis=0)
 
 	def trajectory_reward(self, states, actions):
 		rewards = []
