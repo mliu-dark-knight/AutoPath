@@ -116,12 +116,11 @@ class AutoPath(object):
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
 		return states, actions
-
 	def PPO_epoch(self, sess):
 		start_state = self.environment.initial_state()
 		states, actions = self.collect_trajectory(sess, start_state)
 		states, actions, rewards = self.environment.compute_reward(states, actions)
-		total_size = self.params.trajectory_length * self.params.batch_size
+		total_size = self.params.trajectory_length * len(start_state)
 		assert len(states) == total_size and len(actions) == total_size and len(rewards) == total_size
 		indices = range(total_size)
 		shuffle(indices)
