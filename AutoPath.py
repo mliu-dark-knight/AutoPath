@@ -121,13 +121,14 @@ class AutoPath(object):
 		start_state = self.environment.initial_state()
 		states, actions = self.collect_trajectory(sess, start_state)
 		states, actions, rewards = self.environment.compute_reward(states, actions)
-		assert len(states) == len(actions) and len(actions) == len(rewards)
-		indices = range(self.params.trajectory_length * self.params.batch_size)
+		total_size = self.params.trajectory_length * self.params.batch_size
+		assert len(states) == total_size and len(actions) == total_size and len(rewards) == total_size
+		indices = range(total_size)
 		shuffle(indices)
-		batch_size = self.params.trajectory_length * self.params.batch_size / self.params.step
-		for _ in tqdm(range(self.params.outer_step), ncols=100):
+		sample_size = total_size / self.params.step
+		for _ in tqdm(range(self.params.PPO_step), ncols=100):
 			for i in range(self.params.step):
-				batch_indices = indices[i * batch_size: (i + 1) * batch_size]
+				batch_indices = indices[i * sample_size: (i + 1) * sample_size]
 				sess.run(self.PPO_step, feed_dict={self.state: states[batch_indices],
 				                                   self.action: actions[batch_indices],
 				                                   self.reward_to_go: rewards[batch_indices]})
@@ -142,7 +143,7 @@ class AutoPath(object):
 		return np.array(indices), np.array(labels)
 
 	def classification_epoch(self, sess):
-		for _ in tqdm(range(self.params.outer_step), ncols=100):
+		for _ in tqdm(range(self.params.classification_step), ncols=100):
 			indices, labels = self.sample_classification()
 			sess.run(self.classification_step, feed_dict={self.indices: indices, self.labels: labels, self.training: True})
 
