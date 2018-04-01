@@ -83,10 +83,13 @@ class Environment(object):
 		indices = []
 		for node in nodes:
 			indices.append(self.graph[node].nonzero()[1])
-		max_length = min(self.params.max_neighbor, max(map(lambda l: len(l), indices)))
+		# max_length = 0 will cause error
+		max_length = max(min(self.params.max_neighbor, max(map(lambda l: len(l), indices))), 1)
 		indices_copy = []
 		for index in indices:
-			if len(index) < max_length:
+			if len(index) == 0:
+				indices_copy.append(np.random.choice(self.params.num_node, size=max_length))
+			elif len(index) < max_length:
 				indices_copy.append(np.pad(index, (0, max_length - len(index)), 'wrap'))
 			else:
 				indices_copy.append(np.random.choice(index, max_length, replace=False))
