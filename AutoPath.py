@@ -181,5 +181,5 @@ class AutoPath(object):
 				if a not in visited:
 					visited[a] = 0
 				visited[a] += 1
-			recommendation[state] = sorted(visited.items(), key=operator.itemgetter(1), reverse=True)
+			recommendation[state] = [pair[0] for pair in sorted(visited.items(), key=operator.itemgetter(1), reverse=True)]
 		return recommendation

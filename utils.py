@@ -36,6 +36,7 @@ def load_pair(path):
 				pairs[line[1]].add(line[0])
 	return pairs
 
+
 def load_groups(paths):
 	groups = []
 	for path in paths:
@@ -55,3 +56,4 @@ def precision_recall(prediction, ground_truth, top_k):
 		precision += len(intersection) / float(top_k)
 		recall += len(intersection) / float(len(ground_truth[key]))
 	return precision / len(prediction), recall / len(ground_truth)
+
