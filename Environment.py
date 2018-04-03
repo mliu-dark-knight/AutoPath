@@ -14,7 +14,7 @@ class Environment(object):
 
 
 	def load_node(self):
-		self.id_to_name, self.name_to_id, self.type_to_node, self.id_to_type, self.type_to_id = \
+		self.id_to_name, self.name_to_id, self.node_to_type, self.type_to_node, self.id_to_type, self.type_to_id = \
 			utils.load_node(self.params.node_file)
 		self.params.num_node = len(self.id_to_name)
 		self.params.num_type = len(self.id_to_type)
@@ -34,7 +34,7 @@ class Environment(object):
 
 	def load_train(self, paths):
 		groups = utils.load_groups(paths)
-		return_groups = [np.array([self.name_to_id[name] for name in group if name in self.name_to_id ]) for group in groups]
+		return_groups = [np.array([self.name_to_id[name] for name in group if name in self.name_to_id]) for group in groups]
 		print('Train size: %d' % sum([len(group)**2 for group in return_groups]))
 		return return_groups
 
@@ -58,25 +58,15 @@ class Environment(object):
 		states = []
 		for group in self.train_data:
 			sample_size = max(len(group)**2 * batch_size / total_size, 1)
-			states.append(np.stack([np.random.choice(group, size=sample_size), np.random.choice(group, size=sample_size)], axis=1))
+			state = np.random.choice(group, size=sample_size)
+			states.append(np.stack([state, state], axis=1))
 		return np.concatenate(states, axis=0)
 
 
 	# returns all test pairs
 	def initial_test(self):
 		states = np.array(self.test_data.keys())
-		empty_states = np.array([self.params.num_node] * len(states))
-		return np.stack([states, empty_states], axis=1)
-
-
-	def next_state(self, starts, actions):
-		nexts = []
-		for start, action in zip(starts, actions):
-			if action == start[1]:
-				nexts.append(start)
-			else:
-				nexts.append(np.array((action, start[1])))
-		return np.array(nexts)
+		return np.stack([states, states], axis=1)
 
 
 	def get_neighbors(self, nodes):
@@ -109,14 +99,17 @@ class Environment(object):
 	def trajectory_reward(self, states, actions):
 		rewards = []
 		reward = 0.0
-		start, target = states[0]
+		start = states[0][0]
 		prev = -1
 		for action in actions:
 			rewards.append(reward)
 			if action == prev:
 				reward -= 1.0
-			elif action == target:
-				reward += 1.0
+			elif action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start]:
+				for group in self.train_data:
+					if action in group and start in group:
+						reward += 1.0
+						break
 			prev = action
 		rewards = reward - np.array(rewards)
 		return rewards

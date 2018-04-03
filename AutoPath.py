@@ -105,17 +105,18 @@ class AutoPath(object):
 		feed_state = deepcopy(start_state)
 		states, actions = [], []
 		for i in range(self.params.trajectory_length):
-			states.append(feed_state)
+			states.append(deepcopy(feed_state))
 			feed_neighbor = self.environment.get_neighbors(feed_state[:, 0])
 			# action contains indices of actual node IDs
 			action_indices = sess.run(self.decision,
 			                          feed_dict={self.state: feed_state, self.neighbors: feed_neighbor})
 			action = feed_neighbor[np.array(range(len(start_state))), action_indices]
 			actions.append(action)
-			feed_state = self.environment.next_state(feed_state, action)
+			feed_state[:, 1] = action
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
 		return states, actions
+
 	def PPO_epoch(self, sess):
 		start_state = self.environment.initial_state()
 		states, actions = self.collect_trajectory(sess, start_state)
