@@ -33,7 +33,8 @@ class AutoPath(object):
 		embedding = dropout(tf.nn.embedding_lookup(self.embedding, self.indices), self.params.keep_prob, self.training)
 		logits = fully_connected(embedding, self.params.num_type, 'Classification', activation='linear')
 		self.prediction = tf.argmax(logits, axis=1)
-		loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tf.one_hot(self.labels, self.params.num_type), logits=logits), axis=0)
+		loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+			labels=tf.one_hot(self.labels, self.params.num_type), logits=logits), axis=0)
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.classification_step = optimizer.minimize(loss)
 
@@ -168,19 +169,26 @@ class AutoPath(object):
 
 	def plan(self, sess):
 		start_state = self.environment.initial_test()
-		actions = []
-		for i in range(int(math.ceil(len(start_state) / float(self.params.batch_size)))):
-			_, action = self.collect_trajectory(sess, start_state[i * self.params.batch_size : min((i + 1) * self.params.batch_size, len(start_state))])
-			actions.append(action)
-		actions = np.concatenate(actions, axis=0)
+		trials = []
+		for _ in tqdm(range(self.params.num_trial), ncols=100):
+			actions = []
+			for i in tqdm(range(int(math.ceil(len(start_state) / float(self.params.batch_size)))), ncols=100):
+				_, action = self.collect_trajectory(sess, start_state[i * self.params.batch_size
+				                                                      : min((i + 1) * self.params.batch_size, len(start_state))])
+				actions.append(action)
+			actions = np.concatenate(actions, axis=0)
+			trials.append(actions)
+		trials = np.concatenate(trials, axis=1)
 		start_state = start_state[:, 0]
+		assert len(start_state) == len(trials)
 
 		recommendation = {}
-		for state, action in zip(start_state, actions):
-			visited = {}
+		for state, action in zip(start_state, trials):
+			visited = {state: 0}
 			for a in action:
-				if a not in visited:
-					visited[a] = 0
-				visited[a] += 1
+				if a < self.params.num_node and self.environment.node_to_type[state] == self.environment.node_to_type[a]:
+					if a not in visited:
+						visited[a] = 0
+					visited[a] += 1
 			recommendation[state] = [pair[0] for pair in sorted(visited.items(), key=operator.itemgetter(1), reverse=True)]
 		return recommendation

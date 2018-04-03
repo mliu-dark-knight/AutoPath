@@ -22,7 +22,7 @@ def load_node(path):
 	type_to_id, id_to_type = {}, []
 	for id, t in enumerate(type_to_node.keys()):
 		type_to_id[t] = id
-		id_to_type.append(type_id)
+		id_to_type.append(t)
 		type_id += 1
 	return id_to_name, name_to_id, node_to_type, type_to_node_copy, id_to_type, type_to_id
 
