@@ -4,7 +4,7 @@ import os
 
 def parse_args():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--device_id', type=int, default=0, help=None)
+	parser.add_argument('--device_id', type=int, default=1, help=None)
 	parser.add_argument('--max_neighbor', type=int, default=20, help=None)
 	parser.add_argument('--num_node', type=int, default=-1, help='Total number of nodes')
 	parser.add_argument('--num_attribute', type=int, default=-1, help='Total number of attributes')
