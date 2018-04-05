@@ -1,5 +1,6 @@
 import gc
 import operator
+import utils
 from copy import deepcopy
 from random import shuffle
 
@@ -7,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 from NN import *
+
 
 
 class AutoPath(object):
@@ -122,6 +124,7 @@ class AutoPath(object):
 		start_state = self.environment.initial_state()
 		states, actions = self.collect_trajectory(sess, start_state)
 		states, actions, rewards = self.environment.compute_reward(states, actions)
+		self.average_reward.append(np.average(rewards))
 		total_size = self.params.trajectory_length * len(start_state)
 		assert len(states) == total_size and len(actions) == total_size and len(rewards) == total_size
 		indices = range(total_size)
@@ -150,9 +153,12 @@ class AutoPath(object):
 
 	def train(self, sess):
 		sess.run(tf.global_variables_initializer())
+		self.average_reward = []
 		for _ in tqdm(range(self.params.epoch), ncols=100):
 			self.classification_epoch(sess)
 			self.PPO_epoch(sess)
+		utils.plot(self.average_reward, self.params.plot_file)
+
 
 	def accuracy(self, sess):
 		indices, labels = [], []

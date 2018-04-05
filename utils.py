@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 
@@ -58,3 +61,9 @@ def precision_recall(prediction, ground_truth, top_k):
 		recall += len(intersection) / float(len(ground_truth[key]))
 	return precision / len(prediction), recall / len(ground_truth)
 
+
+def plot(data, plot_file):
+	plt.figure()
+	plt.plot(range(len(data)), data)
+	plt.savefig(plot_file)
+	plt.close()

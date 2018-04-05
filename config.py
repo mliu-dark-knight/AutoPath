@@ -32,6 +32,7 @@ def init_dir(args):
 	args.link_file = args.data_dir + '/link.txt'
 	args.train_files = [args.data_dir + 'train_' + str(i) + '.txt' for i in range(6)]
 	args.test_file = args.data_dir + '/test.txt'
+	args.plot_file = args.data_dir + '/reward.png'
 
 args = parse_args()
 init_dir(args)
