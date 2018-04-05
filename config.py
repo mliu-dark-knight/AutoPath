@@ -30,7 +30,7 @@ def init_dir(args):
 	args.data_dir = os.getcwd() + '/data/'
 	args.node_file = args.data_dir + '/node.txt'
 	args.link_file = args.data_dir + '/link.txt'
-	args.train_files = [args.data_dir + '/train_1.txt', args.data_dir + '/train_2.txt']
+	args.train_files = [args.data_dir + 'train_' + str(i) + '.txt' for i in range(6)]
 	args.test_file = args.data_dir + '/test.txt'
 
 args = parse_args()
