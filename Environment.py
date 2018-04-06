@@ -82,6 +82,7 @@ class Environment(object):
 		max_length = max(min(self.params.max_neighbor, max(map(lambda l: len(l), indices))), 1)
 		indices_copy = []
 		for index in indices:
+			# select random nodes as neighbors
 			if len(index) == 0:
 				indices_copy.append(np.random.choice(self.params.num_node, size=max_length))
 			elif len(index) < max_length:

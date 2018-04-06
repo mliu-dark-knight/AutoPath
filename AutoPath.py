@@ -109,7 +109,7 @@ class AutoPath(object):
 		states, actions = [], []
 		for i in range(self.params.trajectory_length):
 			states.append(deepcopy(feed_state))
-			feed_neighbor = self.environment.get_neighbors(feed_state[:, 0])
+			feed_neighbor = self.environment.get_neighbors(feed_state[:, 1])
 			# action contains indices of actual node IDs
 			action_indices = sess.run(self.decision,
 			                          feed_dict={self.state: feed_state, self.neighbors: feed_neighbor})
