@@ -16,12 +16,12 @@ def parse_args():
 	parser.add_argument('--clip_epsilon', type=float, default=1e-1, help=None)
 	parser.add_argument('--c_value', type=float, default=1.0, help='Coefficient for value function loss')
 	parser.add_argument('--batch_size', type=int, default=10, help='Number of trajectories sampled')
-	parser.add_argument('--trajectory_length', type=int, default=5, help=None)
+	parser.add_argument('--trajectory_length', type=int, default=3, help=None)
 	parser.add_argument('--epoch', type=int, default=20, help=None)
 	parser.add_argument('--classification_step', type=int, default=2, help='Number of rounds of mini batch SGD per epoch for classification')
 	parser.add_argument('--PPO_step', type=int, default=2, help='Number of rounds of mini batch SGD per epoch for PPO')
 	parser.add_argument('--step', type=int, default=2, help=None)
-	parser.add_argument('--num_trial', type=int, default=10, help='Number of random walks during planning')
+	parser.add_argument('--num_trial', type=int, default=1, help='Number of random walks during planning')
 	parser.add_argument('--top_k', type=int, default=10, help='Top k for precision and recall')
 	return parser.parse_args()
 
@@ -32,7 +32,8 @@ def init_dir(args):
 	args.node_file = args.data_dir + 'node.txt'
 	args.link_file = args.data_dir + 'link.txt'
 	args.train_files = [args.data_dir + 'train_' + str(i) + '.txt' for i in range(6)]
-	args.test_file = args.data_dir + 'test.txt'
+	args.test_pos_file = args.data_dir + 'positive.txt'
+	args.test_neg_file = args.data_dir + 'negative.txt'
 	args.plot_file = args.data_dir + 'reward.png'
 	args.model_file = args.model_dir + 'model.ckpt'
 

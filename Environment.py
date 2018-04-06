@@ -10,7 +10,8 @@ class Environment(object):
 		self.load_node()
 		self.load_graph()
 		self.train_data = self.load_train(self.params.train_files)
-		self.test_data = self.load_test(self.params.test_file)
+		self.test_pos = self.load_test(self.params.test_pos_file)
+		self.test_neg = self.load_test(self.params.test_neg_file)
 
 
 	def load_node(self):
@@ -67,9 +68,9 @@ class Environment(object):
 		return np.concatenate(states, axis=0)
 
 
-	# returns all test pairs
+	# returns all test nodes
 	def initial_test(self):
-		states = np.array(self.test_data.keys())
+		states = np.array(self.test_pos.keys())
 		return np.stack([states, states], axis=1)
 
 
@@ -106,12 +107,23 @@ class Environment(object):
 		rewards = []
 		reward = 0.0
 		start = states[0][0]
+		start_group = -1
+		for i, group in enumerate(self.train_data):
+			if start in group:
+				start_group = i
+				break
 		for action in actions:
 			rewards.append(reward)
 			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start]:
-				for group in self.train_data:
-					if action in group and start in group:
-						reward += 1.0
+				action_group = -1
+				for i, group in enumerate(self.train_data):
+					if action in group:
+						action_group = i
 						break
+				if start_group == action_group:
+					if start_group > -1 and action_group > -1:
+						reward += 1.0
+				else:
+					reward -= 1.0 / len(self.train_data)
 		rewards = reward - np.array(rewards)
 		return rewards

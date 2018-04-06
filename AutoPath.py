@@ -190,9 +190,14 @@ class AutoPath(object):
 
 		recommendation = {}
 		for state, action in zip(start_state, trials):
+			candidates = set()
+			if state in self.environment.test_pos:
+				candidates |= self.environment.test_pos[state]
+			if state in self.environment.test_neg:
+				candidates |= self.environment.test_neg[state]
 			visited = {state: 0}
 			for a in action:
-				if a < self.params.num_node and self.environment.node_to_type[state] == self.environment.node_to_type[a]:
+				if a in candidates:
 					if a not in visited:
 						visited[a] = 0
 					visited[a] += 1
