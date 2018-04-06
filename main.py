@@ -12,6 +12,8 @@ if __name__ == '__main__':
 		with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 			if os.path.exists(args.model_file + '.meta'):
 				saver.restore(sess, args.model_file)
+			else:
+				sess.run(tf.global_variables_initializer())
 			agent.train(sess)
 			saver.save(sess, args.model_file)
 			print('Node type accuracy: %f' % agent.accuracy(sess))

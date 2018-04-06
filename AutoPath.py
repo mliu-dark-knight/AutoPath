@@ -151,8 +151,8 @@ class AutoPath(object):
 			indices, labels = self.sample_classification()
 			sess.run(self.classification_step, feed_dict={self.indices: indices, self.labels: labels, self.training: True})
 
+	# do not initialize variables here
 	def train(self, sess):
-		sess.run(tf.global_variables_initializer())
 		self.average_reward = []
 		for _ in tqdm(range(self.params.epoch), ncols=100):
 			self.classification_epoch(sess)
