@@ -106,16 +106,12 @@ class Environment(object):
 		rewards = []
 		reward = 0.0
 		start = states[0][0]
-		prev = -1
 		for action in actions:
 			rewards.append(reward)
-			if action == prev:
-				reward -= 1.0
-			elif action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start]:
+			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start]:
 				for group in self.train_data:
 					if action in group and start in group:
 						reward += 1.0
 						break
-			prev = action
 		rewards = reward - np.array(rewards)
 		return rewards
