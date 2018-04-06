@@ -113,6 +113,7 @@ class Environment(object):
 			if start in group:
 				start_group = i
 				break
+		assert start_group > -1
 		for action in actions:
 			rewards.append(reward)
 			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start]:
@@ -122,8 +123,7 @@ class Environment(object):
 						action_group = i
 						break
 				if start_group == action_group:
-					if start_group > -1 and action_group > -1:
-						reward += 1.0
+					reward += 1.0
 				else:
 					reward -= 1.0 / len(self.train_data)
 		rewards = reward - np.array(rewards)
