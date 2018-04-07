@@ -35,7 +35,7 @@ class AutoPath(object):
 
 		for variable in tf.trainable_variables():
 			# print(variable.name, variable.get_shape())
-			tf.summary.histogram(variable, variable.name)
+			tf.summary.histogram(variable.name, variable)
 
 	def build_classification(self):
 		embedding = dropout(tf.nn.embedding_lookup(self.embedding, self.indices), self.params.keep_prob, self.training)
