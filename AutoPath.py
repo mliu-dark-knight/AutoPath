@@ -61,7 +61,7 @@ class AutoPath(object):
 			value_next = tf.squeeze(self.value(hidden_next))
 
 		# do not use scaled std of embedding vectors as policy std to avoid overflow
-		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32) / 4.0
+		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32) / self.params.embed_dim
 		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), value, value_next, policy, sigma)
 		self.build_plan(policy, sigma)
 
