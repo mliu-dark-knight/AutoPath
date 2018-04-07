@@ -59,10 +59,10 @@ class AutoPath(object):
 			policy = self.policy(hidden)
 		with tf.variable_scope('old', reuse=tf.AUTO_REUSE):
 			hidden_old = self.value_policy(state_embedding)
-			policy_old = self.policy(hidden_old)
 			# todo: check this
 			hidden_next = self.value_policy(next_embedding)
 			value_next = tf.squeeze(self.value(hidden_next))
+			policy_old = self.policy(hidden_old)
 
 		assign_ops = []
 		for new, old in zip(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='new'),
