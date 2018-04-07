@@ -53,15 +53,16 @@ class AutoPath(object):
 	def build_PPO(self):
 		state_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.state), [-1, 2 * self.params.embed_dim])
 		next_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.next_state), [-1, 2 * self.params.embed_dim])
-		with tf.variable_scope('new'):
+		with tf.variable_scope('new', reuse=tf.AUTO_REUSE):
 			hidden = self.value_policy(state_embedding)
-			value = tf.squeeze(self.value(hidden))
-			policy = self.policy(hidden)
-		with tf.variable_scope('old', reuse=tf.AUTO_REUSE):
-			hidden_old = self.value_policy(state_embedding)
-			# todo: check this
 			hidden_next = self.value_policy(next_embedding)
+			policy = self.policy(hidden)
+		with tf.variable_scope('value', reuse=tf.AUTO_REUSE):
+			value = tf.squeeze(self.value(hidden))
+			# todo: check this
 			value_next = tf.squeeze(self.value(hidden_next))
+		with tf.variable_scope('old'):
+			hidden_old = self.value_policy(state_embedding)
 			policy_old = self.policy(hidden_old)
 
 		assign_ops = []
@@ -79,14 +80,14 @@ class AutoPath(object):
 		gc.collect()
 
 	def build_train(self, action, value, value_next, policy_mean, policy_mean_old, sigma):
-		advantage = self.future_reward - tf.stop_gradient(value)
+		advantage = self.reward + tf.stop_gradient(value_next) - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
 		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=1) -
 		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=1))
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
 		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
-		v_loss = tf.reduce_mean(tf.squared_difference(self.reward + tf.stop_gradient(value_next), value), axis=0)
+		v_loss = tf.reduce_mean(tf.squared_difference(self.future_reward, value), axis=0)
 		loss = surr_loss + self.params.c_value * v_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.global_step = tf.Variable(0, trainable=False)

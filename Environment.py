@@ -130,7 +130,7 @@ class Environment(object):
 						action_group.add(i)
 				intersection = start_group & action_group
 				if bool(intersection):
-					reward = len(intersection)
+					reward = 1
 				else:
 					reward = -1
 				total_reward += reward
