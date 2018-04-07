@@ -34,8 +34,8 @@ class AutoPath(object):
 		self.build_PPO()
 
 		for variable in tf.trainable_variables():
-			# print(variable.name, variable.get_shape())
-			tf.summary.histogram(variable.name, variable)
+			print(variable.name, variable.get_shape())
+			# tf.summary.histogram(variable.name, variable)
 		self.merged_summary_op = tf.summary.merge_all()
 
 	def build_classification(self):
@@ -53,52 +53,38 @@ class AutoPath(object):
 	def build_PPO(self):
 		state_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.state), [-1, 2 * self.params.embed_dim])
 		next_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.next_state), [-1, 2 * self.params.embed_dim])
-		with tf.variable_scope('new', reuse=tf.AUTO_REUSE):
+		with tf.variable_scope('value_policy', reuse=tf.AUTO_REUSE):
 			hidden = self.value_policy(state_embedding)
 			hidden_next = self.value_policy(next_embedding)
 			policy = self.policy(hidden)
-		with tf.variable_scope('value', reuse=tf.AUTO_REUSE):
 			value = tf.squeeze(self.value(hidden))
-			# todo: check this
 			value_next = tf.squeeze(self.value(hidden_next))
-		with tf.variable_scope('old'):
-			hidden_old = self.value_policy(state_embedding)
-			policy_old = self.policy(hidden_old)
-
-		assign_ops = []
-		for new, old in zip(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='new'),
-		                    tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='old')):
-			assign_ops.append(tf.assign(old, new))
-		self.assign_ops = tf.group(*assign_ops)
 
 		# do not use scaled std of embedding vectors as policy std to avoid overflow
 		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32) / 4.0
-		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), value, value_next, policy, policy_old, sigma)
+		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), value, value_next, policy, sigma)
 		self.build_plan(policy, sigma)
 
-		del state_embedding, hidden, value, policy, policy_old, sigma
+		del state_embedding, hidden, value, policy, sigma
 		gc.collect()
 
-	def build_train(self, action, value, value_next, policy_mean, policy_mean_old, sigma):
+	def build_train(self, action, value, value_next, policy_mean, sigma):
 		advantage = self.reward + tf.stop_gradient(value_next) - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
-		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=1) -
-		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=1))
-		surr_loss = tf.minimum(ratio * advantage,
-		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
-		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
-		v_loss = tf.reduce_mean(tf.squared_difference(self.future_reward, value), axis=0)
-		loss = surr_loss + self.params.c_value * v_loss
+		log_pi = -0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=1)
+		actor_loss = tf.reduce_mean(log_pi * advantage, axis=0)
+		critic_loss = tf.reduce_mean(tf.squared_difference(self.future_reward, value), axis=0)
+		loss = actor_loss + self.params.c_value * critic_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.global_step = tf.Variable(0, trainable=False)
 		self.PPO_step = optimizer.minimize(loss, global_step=self.global_step)
 
 		with tf.control_dependencies([tf.Assert(tf.is_finite(loss), [loss])]):
 			tf.summary.scalar('value', tf.reduce_mean(value, axis=0))
-			tf.summary.scalar('v_loss', v_loss)
-			tf.summary.scalar('surr_loss', surr_loss)
+			tf.summary.scalar('actor_loss', actor_loss)
+			tf.summary.scalar('critic_loss', critic_loss)
 
-		del advantage, ratio, surr_loss, v_loss, optimizer
+		del advantage, log_pi, actor_loss, critic_loss, loss, optimizer
 		gc.collect()
 
 	def build_plan(self, policy_mean, sigma):
@@ -163,7 +149,6 @@ class AutoPath(object):
 				                                 self.next_state: nexts[batch_indices],
 				                                 self.future_reward: future_rewards[batch_indices]})
 				self.summary_writer.add_summary(summary, global_step=sess.run(self.global_step))
-		sess.run(self.assign_ops)
 
 	def sample_classification(self):
 		indices, labels = [], []
