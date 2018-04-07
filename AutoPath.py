@@ -69,8 +69,8 @@ class AutoPath(object):
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
-		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=-1) -
-		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=-1))
+		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=1) -
+		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=1))
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
 		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
@@ -93,7 +93,7 @@ class AutoPath(object):
 		action_embed = policy.sample()
 		l2_diff = tf.squared_difference(tf.expand_dims(action_embed, axis=1),
 		                                tf.nn.embedding_lookup(self.embedding, self.neighbors))
-		self.decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=-1)
+		self.decision = tf.argmin(tf.reduce_sum(l2_diff, axis=-1), axis=1)
 
 		del policy, action_embed, l2_diff
 		gc.collect()
@@ -108,7 +108,7 @@ class AutoPath(object):
 		return fully_connected(hidden, 1, 'value_o', activation='linear')
 
 	def policy(self, hidden):
-		return fully_connected(hidden, self.params.embed_dim, 'policy_o', activation='linear')
+		return fully_connected(hidden, self.params.embed_dim, 'policy_o', activation='tanh')
 
 	# the number of trajectories sampled is equal to batch size
 	def collect_trajectory(self, sess, start_state):
