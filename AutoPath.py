@@ -53,17 +53,17 @@ class AutoPath(object):
 	def build_PPO(self):
 		state_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.state), [-1, 2 * self.params.embed_dim])
 		next_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.next_state), [-1, 2 * self.params.embed_dim])
-		with tf.variable_scope('new', reuse=tf.AUTO_REUSE):
+		with tf.variable_scope('new'):
 			hidden = self.value_policy(state_embedding)
+			value = tf.squeeze(self.value(hidden))
 			policy = self.policy(hidden)
-			hidden_next = self.value_policy(next_embedding)
-		with tf.variable_scope('old'):
+		with tf.variable_scope('old', reuse=tf.AUTO_REUSE):
 			hidden_old = self.value_policy(state_embedding)
 			policy_old = self.policy(hidden_old)
-		with tf.variable_scope('value', reuse=tf.AUTO_REUSE):
-			value = tf.squeeze(self.value(hidden))
 			# todo: check this
+			hidden_next = self.value_policy(next_embedding)
 			value_next = tf.squeeze(self.value(hidden_next))
+
 		assign_ops = []
 		for new, old in zip(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='new'),
 		                    tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='old')):
@@ -93,6 +93,7 @@ class AutoPath(object):
 		self.PPO_step = optimizer.minimize(loss, global_step=self.global_step)
 
 		with tf.control_dependencies([tf.Assert(tf.is_finite(loss), [loss])]):
+			tf.summary.scalar('value', tf.reduce_mean(value, axis=0))
 			tf.summary.scalar('v_loss', v_loss)
 			tf.summary.scalar('surr_loss', surr_loss)
 
