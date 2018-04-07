@@ -68,17 +68,17 @@ class AutoPath(object):
 
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
-		advantage = tf.Print(advantage, [advantage])
+		advantage = tf.Print(advantage, [advantage], message='advantage')
 		# Gaussian policy with identity matrix as covariance mastrix
 		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=-1) -
 		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=-1))
-		ratio = tf.Print(ratio, [ratio])
+		ratio = tf.Print(ratio, [ratio], message='ratio')
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
 		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
-		surr_loss = tf.Print(surr_loss, [surr_loss])
+		surr_loss = tf.Print(surr_loss, [surr_loss], message='surr_loss')
 		v_loss = tf.reduce_mean(tf.squared_difference(reward_to_go, value), axis=0)
-		v_loss = tf.Print(v_loss, [v_loss])
+		v_loss = tf.Print(v_loss, [v_loss], message='v_loss')
 		loss = surr_loss + self.params.c_value * v_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.global_step = tf.Variable(0, trainable=False)
