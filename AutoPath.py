@@ -75,13 +75,15 @@ class AutoPath(object):
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
 		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
 		v_loss = tf.reduce_mean(tf.squared_difference(reward_to_go, value), axis=0)
+		loss = surr_loss + self.params.c_value * v_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.global_step = tf.Variable(0, trainable=False)
-		self.PPO_step = optimizer.minimize(surr_loss + self.params.c_value * v_loss, global_step=self.global_step)
+		self.PPO_step = optimizer.minimize(loss, global_step=self.global_step)
 
-		tf.summary.scalar('v_loss', v_loss)
-		tf.summary.scalar('surr_loss', surr_loss)
-		self.merged_summary_op = tf.summary.merge_all()
+		with tf.control_dependencies([tf.Assert(tf.is_finite(loss), [loss])]):
+			tf.summary.scalar('v_loss', v_loss)
+			tf.summary.scalar('surr_loss', surr_loss)
+			self.merged_summary_op = tf.summary.merge_all()
 
 		del advantage, ratio, surr_loss, v_loss, optimizer
 		gc.collect()
