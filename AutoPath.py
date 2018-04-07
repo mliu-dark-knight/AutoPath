@@ -69,7 +69,7 @@ class AutoPath(object):
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
-		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - policy_mean_old) / sigma), axis=-1) -
+		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=-1) -
 		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=-1))
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
