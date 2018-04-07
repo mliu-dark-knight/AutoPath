@@ -26,10 +26,15 @@ class AutoPath(object):
 		self.neighbors = tf.placeholder(tf.int32, [None, None])
 		self.state = tf.placeholder(tf.int32, [None, 2])
 		self.action = tf.placeholder(tf.int32, [None])
-		self.reward_to_go = tf.placeholder(tf.float32, [None])
+		self.next_state = tf.placeholder(tf.int32, [None, 2])
+		self.reward = tf.placeholder(tf.float32, [None])
+		self.future_reward = tf.placeholder(tf.float32, [None])
 
 		self.build_classification()
 		self.build_PPO()
+
+		# for variable in tf.trainable_variables():
+		# 	print(variable.name, variable.get_shape())
 
 	def build_classification(self):
 		embedding = dropout(tf.nn.embedding_lookup(self.embedding, self.indices), self.params.keep_prob, self.training)
@@ -45,13 +50,18 @@ class AutoPath(object):
 
 	def build_PPO(self):
 		state_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.state), [-1, 2 * self.params.embed_dim])
-		with tf.variable_scope('new'):
+		next_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.next_state), [-1, 2 * self.params.embed_dim])
+		with tf.variable_scope('new', reuse=tf.AUTO_REUSE):
 			hidden = self.value_policy(state_embedding)
 			policy = self.policy(hidden)
-		value = tf.squeeze(self.value(hidden))
+			hidden_next = self.value_policy(next_embedding)
 		with tf.variable_scope('old'):
 			hidden_old = self.value_policy(state_embedding)
 			policy_old = self.policy(hidden_old)
+		with tf.variable_scope('value', reuse=tf.AUTO_REUSE):
+			value = tf.squeeze(self.value(hidden))
+			# todo: check this
+			value_next = tf.squeeze(self.value(hidden_next))
 		assign_ops = []
 		for new, old in zip(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='new'),
 		                    tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='old')):
@@ -60,21 +70,21 @@ class AutoPath(object):
 
 		# do not use scaled std of embedding vectors as policy std to avoid overflow
 		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32) / 4.0
-		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), self.reward_to_go, value, policy, policy_old, sigma)
+		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), value, value_next, policy, policy_old, sigma)
 		self.build_plan(policy, sigma)
 
 		del state_embedding, hidden, value, policy, policy_old, sigma
 		gc.collect()
 
-	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
-		advantage = reward_to_go - tf.stop_gradient(value)
+	def build_train(self, action, value, value_next, policy_mean, policy_mean_old, sigma):
+		advantage = self.future_reward - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
 		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=1) -
 		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=1))
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
 		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
-		v_loss = tf.reduce_mean(tf.squared_difference(reward_to_go, value), axis=0)
+		v_loss = tf.reduce_mean(tf.squared_difference(self.reward + tf.stop_gradient(value_next), value), axis=0)
 		loss = surr_loss + self.params.c_value * v_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.global_step = tf.Variable(0, trainable=False)
@@ -113,7 +123,7 @@ class AutoPath(object):
 	# the number of trajectories sampled is equal to batch size
 	def collect_trajectory(self, sess, start_state):
 		feed_state = deepcopy(start_state)
-		states, actions = [], []
+		states, actions, nexts = [], [], []
 		for i in range(self.params.trajectory_length):
 			states.append(deepcopy(feed_state))
 			feed_neighbor = self.environment.get_neighbors(feed_state[:, 1])
@@ -123,17 +133,20 @@ class AutoPath(object):
 			action = feed_neighbor[np.array(range(len(start_state))), action_indices]
 			actions.append(action)
 			feed_state[:, 1] = action
+			nexts.append(deepcopy(feed_state))
 		states = np.transpose(np.array(states), axes=(1, 0, 2)).tolist()
 		actions = np.transpose(np.array(actions)).tolist()
-		return states, actions
+		nexts = np.transpose(np.array(nexts), axes=(1, 0, 2)).tolist()
+		return states, actions, nexts
 
 	def PPO_epoch(self, sess):
 		start_state = self.environment.initial_state()
-		states, actions = self.collect_trajectory(sess, start_state)
-		states, actions, rewards = self.environment.compute_reward(states, actions)
-		self.average_reward.append(np.average(rewards))
+		states, actions, nexts = self.collect_trajectory(sess, start_state)
+		states, actions, rewards, nexts, future_rewards = self.environment.compute_reward(states, actions, nexts)
+		self.average_reward.append(np.average(future_rewards))
 		total_size = self.params.trajectory_length * len(start_state)
-		assert len(states) == total_size and len(actions) == total_size and len(rewards) == total_size
+		assert len(states) == total_size and len(actions) == total_size and \
+		       len(rewards) == total_size and len(future_rewards) == total_size
 		indices = range(total_size)
 		shuffle(indices)
 		sample_size = total_size / self.params.step
@@ -143,7 +156,9 @@ class AutoPath(object):
 				_, summary = sess.run([self.PPO_step, self.merged_summary_op],
 				                      feed_dict={self.state: states[batch_indices],
 				                                 self.action: actions[batch_indices],
-				                                 self.reward_to_go: rewards[batch_indices]})
+				                                 self.reward: rewards[batch_indices],
+				                                 self.next_state: nexts[batch_indices],
+				                                 self.future_reward: future_rewards[batch_indices]})
 				self.summary_writer.add_summary(summary, global_step=sess.run(self.global_step))
 		sess.run(self.assign_ops)
 
@@ -189,8 +204,9 @@ class AutoPath(object):
 		for _ in tqdm(range(self.params.num_trial), ncols=100):
 			actions = []
 			for i in tqdm(range(int(math.ceil(len(start_state) / float(self.params.batch_size)))), ncols=100):
-				_, action = self.collect_trajectory(sess, start_state[i * self.params.batch_size
-				                                                      : min((i + 1) * self.params.batch_size, len(start_state))])
+				_, action, _ = self.collect_trajectory(sess,
+				                                       start_state[i * self.params.batch_size :
+				                                                   min((i + 1) * self.params.batch_size, len(start_state))])
 				actions.append(action)
 			actions = np.concatenate(actions, axis=0)
 			trials.append(actions)

@@ -92,21 +92,27 @@ class Environment(object):
 		return np.array(indices_copy)
 
 
-	def compute_reward(self, states, actions):
-		assert len(states) == len(actions)
-		return_states, return_actions, return_rewards = [], [], []
-		for state, action in zip(states, actions):
+	def compute_reward(self, states, actions, nexts):
+		assert len(states) == len(actions) and len(actions) == len(nexts) and len(actions) == len(nexts)
+		return_states, return_actions, return_rewards, return_nexts, return_future_rewards = \
+			[], [], [], [], []
+		for state, action, next in zip(states, actions, nexts):
+			reward, future_reward = self.trajectory_reward(state, action)
 			return_states.append(state)
 			return_actions.append(action)
-			return_rewards.append(np.array(self.trajectory_reward(state, action)))
+			return_rewards.append(np.array(reward))
+			return_nexts.append(next)
+			return_future_rewards.append(np.array(future_reward))
 		return np.concatenate(return_states, axis=0), \
 		       np.concatenate(return_actions, axis=0), \
-		       np.concatenate(return_rewards, axis=0)
+		       np.concatenate(return_rewards, axis=0), \
+		       np.concatenate(return_nexts, axis=0), \
+		       np.concatenate(return_future_rewards, axis=0)
 
 
 	def trajectory_reward(self, states, actions):
-		rewards = []
-		reward = 0.0
+		rewards, future_rewards = [], []
+		total_reward = 0
 		start = states[0][0]
 		start_group = set()
 		for i, group in enumerate(self.train_data):
@@ -114,7 +120,8 @@ class Environment(object):
 				start_group.add(i)
 		assert bool(start_group)
 		for action in actions:
-			rewards.append(reward)
+			future_rewards.append(total_reward)
+			reward = 0
 			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start] \
 					and action != start:
 				action_group = set()
@@ -123,8 +130,10 @@ class Environment(object):
 						action_group.add(i)
 				intersection = start_group & action_group
 				if bool(intersection):
-					reward += len(intersection)
+					reward = len(intersection)
 				else:
-					reward -= 1.0
-		rewards = reward - np.array(rewards)
-		return rewards
+					reward = -1
+				total_reward += reward
+			rewards.append(reward)
+		future_rewards = total_reward - np.array(future_rewards)
+		return rewards, future_rewards
