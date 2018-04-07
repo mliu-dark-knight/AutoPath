@@ -16,7 +16,7 @@ def parse_args():
 	parser.add_argument('--clip_epsilon', type=float, default=1e-1, help=None)
 	parser.add_argument('--c_value', type=float, default=1.0, help='Coefficient for value function loss')
 	parser.add_argument('--batch_size', type=int, default=10, help='Number of trajectories sampled')
-	parser.add_argument('--trajectory_length', type=int, default=3, help=None)
+	parser.add_argument('--trajectory_length', type=int, default=2, help=None)
 	parser.add_argument('--epoch', type=int, default=20, help=None)
 	parser.add_argument('--classification_step', type=int, default=2, help='Number of rounds of mini batch SGD per epoch for classification')
 	parser.add_argument('--PPO_step', type=int, default=2, help='Number of rounds of mini batch SGD per epoch for PPO')

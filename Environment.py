@@ -108,23 +108,23 @@ class Environment(object):
 		rewards = []
 		reward = 0.0
 		start = states[0][0]
-		start_group = -1
+		start_group = set()
 		for i, group in enumerate(self.train_data):
 			if start in group:
-				start_group = i
-				break
-		assert start_group > -1
+				start_group.add(i)
+		assert bool(start_group)
 		for action in actions:
 			rewards.append(reward)
-			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start]:
-				action_group = -1
+			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start] \
+					and action != start:
+				action_group = set()
 				for i, group in enumerate(self.train_data):
 					if action in group:
-						action_group = i
-						break
-				if start_group == action_group:
-					reward += 1.0
+						action_group.add(i)
+				intersection = start_group & action_group
+				if bool(intersection):
+					reward += len(intersection)
 				else:
-					reward -= 1.0 / len(self.train_data)
+					reward -= 1.0
 		rewards = reward - np.array(rewards)
 		return rewards
