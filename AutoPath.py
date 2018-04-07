@@ -45,12 +45,13 @@ class AutoPath(object):
 
 	def build_PPO(self):
 		state_embedding = tf.reshape(tf.nn.embedding_lookup(self.embedding, self.state), [-1, 2 * self.params.embed_dim])
-		hidden = self.value_policy(state_embedding)
-		value = self.value(hidden)
 		with tf.variable_scope('new'):
+			hidden = self.value_policy(state_embedding)
 			policy = self.policy(hidden)
+		value = tf.squeeze(self.value(hidden))
 		with tf.variable_scope('old'):
-			policy_old = self.policy(hidden)
+			hidden_old = self.value_policy(state_embedding)
+			policy_old = self.policy(hidden_old)
 		assign_ops = []
 		for new, old in zip(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='new'),
 		                    tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='old')):
@@ -68,15 +69,19 @@ class AutoPath(object):
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
-		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - policy_mean_old) * sigma), axis=-1) -
-		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) * sigma), axis=-1))
+		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - policy_mean_old) / sigma), axis=-1) -
+		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=-1))
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
-		surr_loss = -tf.reduce_mean(surr_loss, axis=-1)
-		v_loss = tf.reduce_mean(tf.squared_difference(reward_to_go, value), axis=-1)
-
+		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
+		v_loss = tf.reduce_mean(tf.squared_difference(reward_to_go, value), axis=0)
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
-		self.PPO_step = optimizer.minimize(surr_loss + self.params.c_value * v_loss)
+		self.global_step = tf.Variable(0, trainable=False)
+		self.PPO_step = optimizer.minimize(surr_loss + self.params.c_value * v_loss, global_step=self.global_step)
+
+		tf.summary.scalar('v_loss', v_loss)
+		tf.summary.scalar('surr_loss', surr_loss)
+		self.merged_summary_op = tf.summary.merge_all()
 
 		del advantage, ratio, surr_loss, v_loss, optimizer
 		gc.collect()
@@ -133,9 +138,11 @@ class AutoPath(object):
 		for _ in tqdm(range(self.params.PPO_step), ncols=100):
 			for i in range(self.params.step):
 				batch_indices = indices[i * sample_size: (i + 1) * sample_size]
-				sess.run(self.PPO_step, feed_dict={self.state: states[batch_indices],
-				                                   self.action: actions[batch_indices],
-				                                   self.reward_to_go: rewards[batch_indices]})
+				_, summary = sess.run([self.PPO_step, self.merged_summary_op],
+				                      feed_dict={self.state: states[batch_indices],
+				                                 self.action: actions[batch_indices],
+				                                 self.reward_to_go: rewards[batch_indices]})
+				self.summary_writer.add_summary(summary, global_step=sess.run(self.global_step))
 		sess.run(self.assign_ops)
 
 	def sample_classification(self):
@@ -153,6 +160,7 @@ class AutoPath(object):
 
 	# do not initialize variables here
 	def train(self, sess):
+		self.summary_writer = tf.summary.FileWriter(self.params.log_dir, graph=tf.get_default_graph())
 		self.average_reward = []
 		for _ in tqdm(range(self.params.epoch), ncols=100):
 			self.classification_epoch(sess)

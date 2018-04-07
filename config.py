@@ -29,6 +29,7 @@ def parse_args():
 def init_dir(args):
 	args.data_dir = os.getcwd() + '/data/'
 	args.model_dir = os.getcwd() + '/model/'
+	args.log_dir = os.getcwd() + '/log/'
 	args.node_file = args.data_dir + 'node.txt'
 	args.link_file = args.data_dir + 'link.txt'
 	args.train_files = [args.data_dir + 'train_' + str(i) + '.txt' for i in range(6)]
