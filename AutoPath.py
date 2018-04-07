@@ -59,8 +59,8 @@ class AutoPath(object):
 			assign_ops.append(tf.assign(old, new))
 		self.assign_ops = tf.group(*assign_ops)
 
-		# use scaled std of embedding vectors as policy std
-		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32) / self.params.embed_dim
+		# do not use scaled std of embedding vectors as policy std to avoid overflow
+		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32)
 		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), self.reward_to_go, value, policy, policy_old, sigma)
 		self.build_plan(policy, sigma)
 
