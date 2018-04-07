@@ -49,7 +49,6 @@ class AutoPath(object):
 			hidden = self.value_policy(state_embedding)
 			policy = self.policy(hidden)
 		value = tf.squeeze(self.value(hidden))
-		value = tf.Print(value, [value], message='value')
 		with tf.variable_scope('old'):
 			hidden_old = self.value_policy(state_embedding)
 			policy_old = self.policy(hidden_old)
@@ -60,7 +59,7 @@ class AutoPath(object):
 		self.assign_ops = tf.group(*assign_ops)
 
 		# do not use scaled std of embedding vectors as policy std to avoid overflow
-		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32)
+		sigma = tf.ones(self.params.embed_dim, dtype=tf.float32) / 4.0
 		self.build_train(tf.nn.embedding_lookup(self.embedding, self.action), self.reward_to_go, value, policy, policy_old, sigma)
 		self.build_plan(policy, sigma)
 
@@ -69,17 +68,13 @@ class AutoPath(object):
 
 	def build_train(self, action, reward_to_go, value, policy_mean, policy_mean_old, sigma):
 		advantage = reward_to_go - tf.stop_gradient(value)
-		advantage = tf.Print(advantage, [advantage], message='advantage')
 		# Gaussian policy with identity matrix as covariance mastrix
 		ratio = tf.exp(0.5 * tf.reduce_sum(tf.square((action - tf.stop_gradient(policy_mean_old)) / sigma), axis=-1) -
 		               0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=-1))
-		ratio = tf.Print(ratio, [ratio], message='ratio')
 		surr_loss = tf.minimum(ratio * advantage,
 		                       tf.clip_by_value(ratio, 1.0 - self.params.clip_epsilon, 1.0 + self.params.clip_epsilon) * advantage)
 		surr_loss = -tf.reduce_mean(surr_loss, axis=0)
-		surr_loss = tf.Print(surr_loss, [surr_loss], message='surr_loss')
 		v_loss = tf.reduce_mean(tf.squared_difference(reward_to_go, value), axis=0)
-		v_loss = tf.Print(v_loss, [v_loss], message='v_loss')
 		loss = surr_loss + self.params.c_value * v_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 		self.global_step = tf.Variable(0, trainable=False)
