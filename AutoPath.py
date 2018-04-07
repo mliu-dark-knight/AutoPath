@@ -49,6 +49,7 @@ class AutoPath(object):
 			hidden = self.value_policy(state_embedding)
 			policy = self.policy(hidden)
 		value = tf.squeeze(self.value(hidden))
+		value = tf.Print(value, [value], message='value')
 		with tf.variable_scope('old'):
 			hidden_old = self.value_policy(state_embedding)
 			policy_old = self.policy(hidden_old)
