@@ -1,14 +1,12 @@
 import gc
-import operator
-import utils
 from copy import deepcopy
 from random import shuffle
 
 import numpy as np
 from tqdm import tqdm
 
+import utils
 from NN import *
-
 
 
 class AutoPath(object):
@@ -20,7 +18,7 @@ class AutoPath(object):
 	def build(self):
 		self.training = tf.placeholder(tf.bool)
 		# last index is None embedding
-		self.embedding = embedding('Embedding', [self.params.num_node + 1, self.params.embed_dim])
+		self.embedding = embedding('Embedding', [self.params.num_node, self.params.embed_dim])
 		self.indices = tf.placeholder(tf.int32, [None])
 		self.labels = tf.placeholder(tf.int32, [None])
 		self.neighbors = tf.placeholder(tf.int32, [None, None])
@@ -190,30 +188,16 @@ class AutoPath(object):
 		start_state = self.environment.initial_test()
 		trials = []
 		for _ in tqdm(range(self.params.num_trial), ncols=100):
-			actions = []
-			for i in tqdm(range(int(math.ceil(len(start_state) / float(self.params.batch_size)))), ncols=100):
-				_, action, _ = self.collect_trajectory(sess,
-				                                       start_state[i * self.params.batch_size :
-				                                                   min((i + 1) * self.params.batch_size, len(start_state))])
-				actions.append(action)
-			actions = np.concatenate(actions, axis=0)
+			_, actions, _ = self.collect_trajectory(sess, start_state)
 			trials.append(actions)
-		trials = np.concatenate(trials, axis=1)
+		trials = np.concatenate(trials, axis=0)
 		start_state = start_state[:, 0]
 		assert len(start_state) == len(trials)
 
-		recommendation = {}
+		rank_lists = {}
 		for state, action in zip(start_state, trials):
-			candidates = set()
-			if state in self.environment.test_pos:
-				candidates |= self.environment.test_pos[state]
-			if state in self.environment.test_neg:
-				candidates |= self.environment.test_neg[state]
-			visited = {state: 0}
+			frequency = np.zeros(self.params.num_node, dtype=np.int32)
 			for a in action:
-				if a in candidates:
-					if a not in visited:
-						visited[a] = 0
-					visited[a] += 1
-			recommendation[state] = [pair[0] for pair in sorted(visited.items(), key=operator.itemgetter(1), reverse=True)]
-		return recommendation
+				frequency[a] -= 1
+			rank_lists[state] = np.argsort(frequency)
+		return rank_lists

@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 from scipy.sparse import csr_matrix
 
 import utils
@@ -10,8 +11,7 @@ class Environment(object):
 		self.load_node()
 		self.load_graph()
 		self.train_data = self.load_train(self.params.train_files)
-		self.test_pos = self.load_test(self.params.test_pos_file)
-		self.test_neg = self.load_test(self.params.test_neg_file)
+		self.test_data = self.load_test(self.params.test_file)
 
 
 	def load_node(self):
@@ -29,7 +29,7 @@ class Environment(object):
 		with open(self.params.link_file) as f:
 			for line in f:
 				line = line.rstrip().split('\t')
-				if len(line) == 2 and line[0] in self.name_to_id and line[1] in self.name_to_id:
+				if len(line) == 2:
 					row.append(self.name_to_id[line[0]])
 					col.append(self.name_to_id[line[1]])
 					data.append(1.0)
@@ -38,22 +38,18 @@ class Environment(object):
 
 	def load_train(self, paths):
 		groups = utils.load_groups(paths)
-		return_groups = [np.array([self.name_to_id[name] for name in group if name in self.name_to_id])
+		return_groups = [np.array([self.name_to_id[name] for name in group])
 		                 for group in groups]
 		print('Train size: %d' % sum([len(group)**2 for group in return_groups]))
 		return return_groups
 
 
 	def load_test(self, path):
-		related = utils.load_pair(path)
-		return_related = {}
-		for key, values in related.items():
-			if key in self.name_to_id:
-				ids = set([self.name_to_id[value] for value in values if value in self.name_to_id])
-				if bool(ids):
-					return_related[self.name_to_id[key]] = ids
-		print('Test size: %d' % sum(map(len,  return_related.values())))
-		return return_related
+		test_data = []
+		with open(path) as f:
+			for line in f:
+				test_data.append(self.name_to_id[line.rstrip()])
+		return np.array(test_data)
 
 
 	# returns a batch of 2d array, 2nd dimension is 2
@@ -70,7 +66,7 @@ class Environment(object):
 
 	# returns all test nodes
 	def initial_test(self):
-		states = np.array(self.test_pos.keys())
+		states = deepcopy(self.test_data)
 		return np.stack([states, states], axis=1)
 
 
@@ -122,8 +118,7 @@ class Environment(object):
 		for action in actions:
 			future_rewards.append(total_reward)
 			reward = 0
-			if action < self.params.num_node and self.node_to_type[action] == self.node_to_type[start] \
-					and action != start:
+			if self.node_to_type[action] == self.node_to_type[start] and action != start:
 				action_group = set()
 				for i, group in enumerate(self.train_data):
 					if action in group:
