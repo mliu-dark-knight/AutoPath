@@ -72,7 +72,7 @@ class AutoPath(object):
 		advantage = self.reward + tf.stop_gradient(value_next) - tf.stop_gradient(value)
 		# Gaussian policy with identity matrix as covariance mastrix
 		log_pi = -0.5 * tf.reduce_sum(tf.square((action - policy_mean) / sigma), axis=1)
-		actor_loss = tf.reduce_mean(log_pi * advantage, axis=0)
+		actor_loss = -tf.reduce_mean(log_pi * advantage, axis=0)
 		critic_loss = tf.reduce_mean(tf.squared_difference(self.future_reward, value), axis=0)
 		loss = actor_loss + self.params.c_value * critic_loss
 		optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
